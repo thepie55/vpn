@@ -86,10 +86,25 @@ validate_name() {
   [[ $1 =~ ^[A-Za-z0-9_-]+$ ]] || die "Client name '$1' may only contain letters, digits, - and _."
 }
 
+# openvpn and easy-rsa come from EPEL on RHEL-family systems. Rocky/Alma ship
+# epel-release in their own repos; RHEL and many provider images don't.
+enable_epel() {
+  local id el
+  id=$(. /etc/os-release && echo "$ID")
+  el=$(. /etc/os-release && echo "${VERSION_ID%%.*}")
+  pm_install epel-release && return
+  if [[ $id == ol ]]; then
+    pm_install "oracle-epel-release-el$el" && return
+  fi
+  log "epel-release isn't in this system's repos; installing it from the Fedora project"
+  pm_install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-$el.noarch.rpm" \
+    || die "Couldn't enable EPEL, which provides openvpn and easy-rsa."
+}
+
 install_packages() {
   log "Installing packages"
   if [[ $OS == rhel ]]; then
-    pm_install epel-release || warn "Couldn't install epel-release; on RHEL, enable EPEL yourself."
+    enable_epel
   else
     apt-get update
   fi
