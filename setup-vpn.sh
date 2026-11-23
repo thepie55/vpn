@@ -232,6 +232,11 @@ setup_firewall() {
 
   if systemctl is-active --quiet firewalld; then
     log "Configuring firewalld"
+    # Close the port from a previous run with a different PROTO/PORT.
+    if [[ -n $OLD_LISTEN && $OLD_LISTEN != "$PORT/$PROTO" ]]; then
+      firewall-cmd --permanent --query-port="$OLD_LISTEN" >/dev/null \
+        && firewall-cmd --permanent --remove-port="$OLD_LISTEN"
+    fi
     firewall-cmd --permanent --query-port="$PORT/$PROTO" >/dev/null \
       || firewall-cmd --permanent --add-port="$PORT/$PROTO"
     firewall-cmd --permanent --zone=trusted --query-source="$net" >/dev/null \
@@ -358,6 +363,10 @@ main() {
     install)
       [[ $# -le 1 ]] || usage
       preflight
+      OLD_LISTEN=""
+      if [[ -f $SERVER_DIR/server.conf ]]; then
+        OLD_LISTEN=$(awk '$1 == "port" {p = $2} $1 == "proto" {t = $2} END {if (p && t) print p "/" t}' "$SERVER_DIR/server.conf")
+      fi
       install_packages
       detect_public_ip
       setup_pki
